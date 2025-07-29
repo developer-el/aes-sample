@@ -1,11 +1,14 @@
 <template>
   <main>
-    <button @click="fetchSecureUser()">사용자 정보 가져오기</button>
-    <div v-if="responses.encrypted">
+    <button @click="fetchSecureUser()" style="padding: 10px 20px; font-size: 16px; margin: 10px;">sample 1</button>
+    <button @click="fetchNestedData()" style="padding: 10px 20px; font-size: 16px; margin: 10px;">sample 2</button>
+    <button @click="fetchArrayData()" style="padding: 10px 20px; font-size: 16px; margin: 10px;">sample 3</button>
+    <button @click="fetchArrayNestedData()" style="padding: 10px 20px; font-size: 16px; margin: 10px;">sample 4</button>
+    <div style="height: 500px; width: 1000px; overflow-y: auto; margin-bottom: 20px; margin-top: 20px; border: 1px solid white;">
       <h3>암호화된 응답:</h3>
       <pre>{{ responses.encrypted }}</pre>
     </div>
-    <div v-if="responses.decrypted">
+    <div style="height: 500px; width: 1000px; overflow-y: auto; border: 1px solid white;">
       <h3>복호화된 응답:</h3>
       <pre>{{ responses.decrypted }}</pre>
     </div>
@@ -13,61 +16,31 @@
 </template>
 
 <script setup>
-import axios from 'axios';
+import api from './api';
 import {reactive} from 'vue';
 
 const responses = reactive({
-  encrypted: null,
-  decrypted: null
+  encrypted: {},
+  decrypted: {}
 });
 
-async function decryptAES(encryptedBase64, base64Key) {
-  // Base64 디코딩
-  const combined = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
-  const iv = combined.slice(0, 12);
-  const data = combined.slice(12);
-
-  // Key 가져오기
-  const keyBytes = Uint8Array.from(atob(base64Key), c => c.charCodeAt(0));
-  const cryptoKey = await window.crypto.subtle.importKey(
-      'raw',
-      keyBytes,
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-  );
-
-  // 복호화
-  const decrypted = await window.crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: iv },
-      cryptoKey,
-      data
-  );
-
-  return new TextDecoder().decode(decrypted);
-}
-
-async function fetchSecureUser() {
+async function fetchData(endpoint) {
   try {
-    const res = await axios.get('http://localhost:8080/data');
-    const uuid = res.headers['x-aes-uuid'];
-    const encFields = res.headers['x-encrypted-fields'].split(',');
-
-    // Spring Boot 서버에서 AES key 요청
-    const keyRes = await axios.get(`http://localhost:8080/aes-key/${uuid}`);
-    const aesKey = keyRes.data;
-
-    responses.encrypted = {...res.data};
-    const decryptedData = {...res.data};
-    for (const field of encFields) {
-      decryptedData[field] = await decryptAES(res.data[field], aesKey);
-    }
-
-    responses.decrypted = decryptedData;
+    const res = await api.get(endpoint);
+    responses.encrypted = {...res.data.encryptedData};
+    responses.decrypted = res.data;
+    delete responses.decrypted.encryptedData;
   } catch (error) {
     console.error('데이터 fetch 오류:', error);
   }
 }
+
+const fetchSecureUser = () => fetchData('/data');
+const fetchNestedData = () => fetchData('/data/nested');
+const fetchArrayData = () => fetchData('/data/array');
+const fetchArrayNestedData = () => fetchData('/data/array-nested');
+
+fetchSecureUser()
 </script>
 
 <style scoped>
